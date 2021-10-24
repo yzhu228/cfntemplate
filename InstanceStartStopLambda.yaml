@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create lambda functions to start stop instance
+
+Parameters: 
+  LambdaHandlerParameter:
+    Type: String
+    Description: lambda handler string
+    Default: AWSServerless1::AWSServerless1.Function::Get
+  DeploymentBucketParameter:
+    Type: String
+    Description: S3 bucket for the lambda deployment package
+    Default: mylambda019001121
+  DeploymentKeyParameter:
+    Type: String
+    Description: S3 key for the lambda deployment package
+    Default: mylambda.zip
+  LambdaSizeParameter:
+    Type: Number
+    Description: Lambda size, allowed size are 128, 256, 384 and 512
+    Default: 128
+    AllowedValues:
+      - 128
+      - 256
+      - 384
+      - 512
+
+Resources: 
+  StartStopInstanceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function stops EC2 paramName
+      FunctionName: StopEC2Instances
+      Handler: 
+        Ref: LambdaHandlerParameter
+      Runtime: dotnetcore3.1
+      Architectures:
+        - x86_64
+      MemorySize: 
+        Ref: LambdaSizeParameter
+      Role: !ImportValue StartStopInstanceLambdaRoleArn
+      Code:
+        S3Bucket: 
+          Ref: DeploymentBucketParameter
+        S3Key: 
+          Ref: DeploymentKeyParameter
