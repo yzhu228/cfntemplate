@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  queueName:
+    Description: The name of the SQS queue to integrate with the API
+    Type: String
+
+Resources:
+  WebhookApiPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: WebhookApiPolicy
+      Description: Managed policy for Webhook API methods
+      Path: /webhook/
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - sqs:SendMessage
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogsStream
+              - logs:PutLogEvents
+            Resource: "*"
+
+  LdWebhookPostMethodRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Role for ldwebhook POST method
+      RoleName: LdWebhookPostMethodRole
+      Path: /webhook/
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+      ManagedPolicyArns:
+        - !Ref WebhookApiPolicy
+
+  MyWebhookApi:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: MyWebhookApi
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+  LdWebhook:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt MyWebhookApi.RootResourceId
+      PathPart: ldwebhook
+      RestApiId: !Ref MyWebhookApi
+  LdWebhookPostMethod:
+    Type: 'AWS::ApiGateway::Method'
+    DependsOn: LdWebhookPostMethodRole
+    Properties:
+      HttpMethod: POST
+      ResourceId: !Ref LdWebhook
+      RestApiId: !Ref MyWebhookApi
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        Credentials: !GetAtt LdWebhookPostMethodRole.Arn
+        IntegrationHttpMethod: POST
+        Uri: !Join 
+          - ''
+          - - 'arn:aws:apigateway:'
+            - !Ref AWS::Region
+            - :sqs:path/
+            - !Ref AWS::AccountId
+            - /
+            - !Ref queueName
+        PassthroughBehavior: NEVER
+        IntegrationResponses:
+          - StatusCode: 200
+        RequestTemplates:
+          application/json: Action=SendMessage&MessageBody=$input.body
+        RequestParameters:
+          integration.request.header.Content-Type: '''application/x-www-form-urlencoded'''
+      MethodResponses:
+        - ResponseModels:
+            application/json: Empty
+          StatusCode: '200'
+
