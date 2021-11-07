@@ -6,6 +6,12 @@ Parameters:
   queueName:
     Description: The name of the SQS queue to integrate with the API
     Type: String
+  functionName:
+    Description: Lambda function paramName
+    Type: String
+  corsMethodTemplateS3Url:
+    Description: location of cors OPTIONS method nested template
+    Type: String
 
 Resources:
   WebhookApiPolicy:
@@ -61,7 +67,7 @@ Resources:
       RestApiId: !Ref MyWebhookApi
   LdWebhookPostMethod:
     Type: 'AWS::ApiGateway::Method'
-    DependsOn: LdWebhookPostMethodRole
+    DependsOn: ['WebhookApiPolicy', 'WebhookSqs']
     Properties:
       HttpMethod: POST
       ResourceId: !Ref LdWebhook
@@ -93,7 +99,7 @@ Resources:
   CorsStack:
     Type: AWS::CloudFormation::Stack
     Properties:
-      TemplateURL: https://cf-templates-mx1nkjq3l5qw-us-east-1.s3.amazonaws.com/CorsMethod.yaml
+      TemplateURL: !Ref corsMethodTemplateS3Url
       Parameters:
         restApiId: !Ref MyWebhookApi
         resourceId: !Ref LdWebhook
@@ -118,5 +124,59 @@ Resources:
           DataTraceEnabled: 'true'
           LoggingLevel: INFO
 
+  WebhookSqs:
+    Type: AWS::SQS::Queue
+    DeletionPolicy: Retain
+    Properties:
+      QueueName: !Ref queueName
+      ReceiveMessageWaitTimeSeconds: 20
+
+  WebhookLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: WebhookLambdaRole
+      Path: /webhook/
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole
+
+  WebhookLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: WebhookSqs
+    Properties:
+      Description: Lambda function for SQS
+      FunctionName: !Ref functionName
+      MemorySize: 128
+      Role: !GetAtt WebhookLambdaRole.Arn
+      Runtime: nodejs14.x
+      Handler: index.handler
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+              // TODO implement
+              console.log('my-function %j', event);
+              
+              const response = {
+                  statusCode: 200,
+                  body: JSON.stringify('Hello from Lambda!'),
+              };
+              return response;
+          };
+
+  WebhookMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    DependsOn: WebhookLambdaRole
+    Properties:
+      Enabled: true
+      EventSourceArn: !GetAtt WebhookSqs.Arn
+      FunctionName: !GetAtt WebhookLambda.Arn
 
 
