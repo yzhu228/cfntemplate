@@ -1,0 +1,9 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "empty template for import existing resource"
+Resources:
+  WebhookApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    DeletionPolicy: Retain
+    Properties: 
+      Name: "WebHookApi"
+      Description: "API for webhook"

@@ -1,0 +1,50 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Create lambda functions for tutorial demo
+Resources:
+  StartStopInstanceWithLogPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: twoec2-lambda-policy
+      Description: Managed policy for lambda execution role
+      Path: /twoec2/
+      PolicyDocument: # policy document - can be JSON or YAML
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "ec2:Start*"
+              - "ec2:Stop*"
+            Resource: "*"
+  StartStopInstanceLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: twoec2-lambda-execrole
+      Description: This is execution role for lambda
+      Path: /twoec2/
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - !Ref StartStopInstanceWithLogPolicy
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  StartStopInstanceLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function stops EC2 paramName
+      FunctionName: StopEC2Instances
+      Handler: AWSServerless1::AWSServerless1.Function::Get
+      Runtime: dotnetcore3.1
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Role: !GetAtt StartStopInstanceLambdaRole.Arn
+      Code:
+        S3Bucket: mylambda019001121
+        S3Key: mylambda.zip
+    DependsOn:
+      - StartStopInstanceWithLogPolicy
