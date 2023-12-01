@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create AWS config recorder
+
+Parameters:
+  RecorderName:
+    Type: String
+    Default: default
+    Description: Name of the Config recorder
+  BucketName:
+    Type: String
+    Description: S3 bucket ARN for delivery of config items
+
+Resources:
+  ConfigRoleDefault:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AWSConfigCustomServiceRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: config.amazonaws.com
+            Condition:
+              ArnLike:
+                'AWS:SourceArn': !Sub 'arn:${AWS::Partition}:config:${AWS::Region}:${AWS::AccountId}:*'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWS_ConfigRole'
+      Policies:
+        - PolicyName: DeliveryChannelPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: 's3:PutObject*'
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${BucketName}/*
+                Condition:
+                  StringEquals:
+                    's3:x-amz-acl': 'bucket-owner-full-control'
+                    'AWS:SourceAccount': !Sub '${AWS::AccountId}'
+              - Effect: Allow
+                Action:
+                  - s3:GetObjectAcl
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${BucketName}
+                Condition:
+                  StringEquals:
+                    'AWS:SourceAccount': !Sub '${AWS::AccountId}'
+
+  DefaultConfigRecorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Properties:
+      Name: !Ref RecorderName
+      RoleARN: !GetAtt ConfigRoleDefault.Arn
+      RecordingGroup:
+        AllSupported: false
+        IncludeGlobalResourceTypes: false
+        RecordingStrategy:
+          UseOnly: INCLUSION_BY_RESOURCE_TYPES
+        ResourceTypes:
+          - AWS::IAM::User
+          - AWS::IAM::Group
+          - AWS::IAM::Role
+          - AWS::S3::Bucket
+          - AWS::ACM::Certificate
+
+  # Only after recorder is configured.
+  # there is only one delivery channel per account per region
+  DefaultDeliveryChannelS3:
+    DependsOn:
+         - DefaultConfigRecorder
+    Type: AWS::Config::DeliveryChannel
+    Properties:
+      Name: default
+      ConfigSnapshotDeliveryProperties:
+        DeliveryFrequency: Six_Hours
+      S3BucketName: !Sub arn:${AWS::Partition}:s3:::${BucketName}
+      S3KeyPrefix: !Sub ${RecorderName}_${AWS::AccountId}

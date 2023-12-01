@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create AWS config recorder
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: S3 bucket ARN for delivery of config items
+
+Resources:
+  DefaultDeliveryChannelS3:
+    Type: AWS::Config::DeliveryChannel
+    Properties:
+      Name: default
+      ConfigSnapshotDeliveryProperties:
+        DeliveryFrequency: Six_Hours
+      S3BucketName: !Sub arn:${AWS::Partition}:s3:::${BucketName}
+      S3KeyPrefix: !Sub default_${AWS::AccountId}
