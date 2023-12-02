@@ -36,3 +36,4 @@ Resources:
       ConfigSnapshotDeliveryProperties:
         DeliveryFrequency: Six_Hours
       S3BucketName: !Ref BucketName
+      S3KeyPrefix: anewprefix
