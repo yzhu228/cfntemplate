@@ -9,14 +9,54 @@ Parameters:
   BucketName:
     Type: String
     Description: S3 bucket ARN for delivery of config items
+  BucketPrefix:
+    Type: String
+    Default: anewprefix
+    Description: S3 prefix for this recorder's config items
 
 Resources:
+  ConfigRoleDefault:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AWSConfigCustomServiceRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service: config.amazonaws.com
+            Condition:
+              ArnLike:
+                'AWS:SourceArn': !Sub 'arn:${AWS::Partition}:config:${AWS::Region}:${AWS::AccountId}:*'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWS_ConfigRole'
+      Policies:
+        - PolicyName: DeliveryChannelPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${BucketName}/${BucketPrefix}/AWSLogs/${AWS::AccountId}/*
+                Condition:
+                  StringEquals:
+                    's3:x-amz-acl': 'bucket-owner-full-control'
+              - Effect: Allow
+                Action:
+                  - s3:GetObjectAcl
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${BucketName}
 
   DefaultConfigRecorder:
     Type: AWS::Config::ConfigurationRecorder
     Properties:
       Name: !Ref RecorderName
-      RoleARN: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig
+      RoleARN: !GetAtt ConfigRoleDefault.Arn
       RecordingGroup:
         AllSupported: false
         IncludeGlobalResourceTypes: false
@@ -36,4 +76,4 @@ Resources:
       ConfigSnapshotDeliveryProperties:
         DeliveryFrequency: Six_Hours
       S3BucketName: !Ref BucketName
-      S3KeyPrefix: anewprefix
+      S3KeyPrefix: !Ref BucketPrefix
